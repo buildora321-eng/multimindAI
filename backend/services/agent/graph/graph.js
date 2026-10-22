@@ -6,7 +6,7 @@ import { searchAgent } from "../agents/search.agent.js";
 import { codingAgent } from "../agents/coding.agent.js";
 import { pdfAgent } from "../agents/pdf.agent.js";
 import { pptAgent } from "../agents/ppt.agent.js";
-import { imageGenAgent, visionAgent} from "../agents/vision.agent.js"
+import { visionAgent } from "../agents/vision.agent.js"
 const workflow=new StateGraph(agentState)
 
 workflow.addNode("router",router)
@@ -17,7 +17,7 @@ workflow.addNode("pdf",pdfAgent)
 workflow.addNode("ppt",pptAgent)
 workflow.addNode("vision",visionAgent)
 
-workflow.addConditionalEdges("__start__","router")
+workflow.addEdge("__start__", "router");
 workflow.addConditionalEdges("router",(state)=>{
   switch (state.agent) {
     case "chat":
@@ -39,7 +39,7 @@ workflow.addConditionalEdges("router",(state)=>{
 },{
     chat:"chat",
     search:"search",
-    coding:" coding",
+    coding:"coding",
     pdf:"pdf",
     ppt:"ppt",
     vision:"vision"

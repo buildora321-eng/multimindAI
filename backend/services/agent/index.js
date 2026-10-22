@@ -1,5 +1,6 @@
 import express, { Router } from "express"
 import dotenv from "dotenv"
+import "dotenv/config";
 import connectDb from "./config/db.js"
 import router from "./routes/agent.route.js"
 
