@@ -5,7 +5,7 @@ import Nav from './Nav.jsx'
 import ChatInput from './ChatInput'
 import { useDispatch, useSelector } from 'react-redux'
 import getMessages from '../features/getMessages'
-import { setMessages } from '../redux/messageSlice'
+import { setArtifacts, setMessages } from '../redux/messageSlice'
 
 function ChatArea() {
     const { selectedConversation } = useSelector(
@@ -37,6 +37,8 @@ function ChatArea() {
                 dispatch(setMessages(
                     Array.isArray(data) ? data : []
                 ))
+                const latestArtifactMessage=[...data].reverse().find(msg=>msg.artifacts && msg.artifacts.length>0)
+                dispatch(setArtifacts(latestArtifactMessage.artifacts || []))
             }
         }
 
