@@ -44,6 +44,13 @@ Rules:
 - Beautiful spacing
 - Single page unless user asks otherwise.
 
+IMAGES
+====================
+
+Always use real Unsplash images.
+
+Never use placeholders.
+
 Return ONLY valid JSON.
 
 Schema:
@@ -77,6 +84,7 @@ User Request:
 ${state.prompt}
     `
         const res = await llm.invoke(prompt)
+        console.log(res)
         const data = JSON.parse(res.content)
         return {
             ...state,

@@ -18,8 +18,9 @@ function ChatArea() {
         let active = true
 
         const getMesg = async () => {
-            // Clear messages when switching conversations
+            // Clear messages and artifacts when switching conversations
             dispatch(setMessages([]))
+            dispatch(setArtifacts([]))
 
             if (!selectedConversation?._id) {
                 return
@@ -33,13 +34,17 @@ function ChatArea() {
             const data = await getMessages(selectedConversation._id)
 
             // Ignore responses belonging to a previously selected chat
-            if (active) {
-                dispatch(setMessages(
-                    Array.isArray(data) ? data : []
-                ))
-                const latestArtifactMessage=[...data].reverse().find(msg=>msg.artifacts && msg.artifacts.length>0)
-                dispatch(setArtifacts(latestArtifactMessage.artifacts || []))
-            }
+            if (!active) return
+
+            const messages = Array.isArray(data) ? data : []
+
+            dispatch(setMessages(messages))
+
+            const latestArtifactMessage = [...messages]
+                .reverse()
+                .find(msg => Array.isArray(msg.artifacts) && msg.artifacts.length > 0)
+
+            dispatch(setArtifacts(latestArtifactMessage?.artifacts || []))
         }
 
         getMesg()

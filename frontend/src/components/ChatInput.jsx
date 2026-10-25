@@ -2,9 +2,26 @@
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import sendMessage from '../features/sendMessage'
+import getMessages from '../features/getMessages'
 import { createConversation } from '../features/createConversation.js'
-import { Paperclip, Mic, Send, Zap, MessageSquare, Code2, FileText, Presentation, ImageIcon, Search, PanelsTopLeft } from 'lucide-react'
-import { addMessage, setMessages, setArtifacts } from '../redux/messageSlice'
+import {
+    Paperclip,
+    Mic,
+    Send,
+    Zap,
+    MessageSquare,
+    Code2,
+    FileText,
+    Presentation,
+    ImageIcon,
+    Search,
+    PanelsTopLeft
+} from 'lucide-react'
+import {
+    addMessage,
+    setMessages,
+    setArtifacts
+} from '../redux/messageSlice'
 import { updateConversation } from '../features/updateConversation'
 import {
     setConvTitle,
@@ -15,6 +32,7 @@ import {
 function ChatInput() {
     const [value, setValue] = useState('')
     const [selectedAgent, setSelectedAgent] = useState("Auto")
+    const [isSending, setIsSending] = useState(false)
 
     const { selectedConversation } = useSelector(
         state => state.conversation
@@ -25,86 +43,124 @@ function ChatInput() {
     const handleSendMessage = async () => {
         const prompt = value.trim()
 
-        if (!prompt) return
+        if (!prompt || isSending) return
 
-        let conversation = selectedConversation
-
-        // Create a conversation if none is selected
-        if (!conversation) {
-            const conv = await createConversation()
-
-            if (!conv?._id) {
-                return
-            }
-
-            conversation = conv
-
-            // Clear messages and artifacts from the previous conversation
-            dispatch(setMessages([]))
-            dispatch(setArtifacts([]))
-            dispatch(addConversation(conv))
-            dispatch(setSelectedConversation(conv))
-        }
-
-        // Update the title for a new conversation
-        if (conversation.title === "New Chat") {
-            await updateConversation({
-                id: conversation._id,
-                title: prompt
-            })
-
-            dispatch(setConvTitle({
-                conversationId: conversation._id,
-                title: prompt
-            }))
-        }
-
-        const payload = {
-            prompt,
-            conversationId: conversation._id,
-            agent: selectedAgent.toLowerCase()
-        }
-
-        // Clear old messages before adding the new conversation's message
-        if (
-            !selectedConversation ||
-            selectedConversation._id !== conversation._id ||
-            selectedConversation.title === "New Chat"
-        ) {
-            dispatch(setMessages([]))
-            dispatch(setArtifacts([]))
-        }
-
-        dispatch(addMessage({
-            role: "user",
-            content: prompt
-        }))
-
-        setValue('')
+        setIsSending(true)
 
         try {
+            let conversation = selectedConversation
+
+            // Create a conversation if none is selected
+            if (!conversation) {
+                const conv = await createConversation()
+
+                if (!conv?._id) {
+                    console.error("Failed to create conversation")
+                    return
+                }
+
+                conversation = conv
+
+                dispatch(setMessages([]))
+                dispatch(setArtifacts([]))
+                dispatch(addConversation(conv))
+                dispatch(setSelectedConversation(conv))
+            }
+
+            // Update the title for a new conversation
+            if (conversation.title === "New Chat") {
+                await updateConversation({
+                    id: conversation._id,
+                    title: prompt
+                })
+
+                dispatch(setConvTitle({
+                    conversationId: conversation._id,
+                    title: prompt
+                }))
+            }
+
+            const payload = {
+                prompt,
+                conversationId: conversation._id,
+                agent: selectedAgent.toLowerCase()
+            }
+
+            // Clear old messages and artifacts for a new conversation
+            if (
+                !selectedConversation ||
+                selectedConversation._id !== conversation._id
+            ) {
+                dispatch(setMessages([]))
+                dispatch(setArtifacts([]))
+            }
+
+            // Add the user's message and hide the previous artifact
+            dispatch(addMessage({
+                role: "user",
+                content: prompt
+            }))
+
+            dispatch(setArtifacts([]))
+            setValue('')
+
+            // Ask the agent to process the prompt
             const data = await sendMessage(payload)
 
             console.log("Agent response:", data)
 
-            if (data != null) {
-                dispatch(addMessage({
-                    role: "assistant",
-                    content: data?.answer || data?.message || "",
-                    images: data?.images || []
-                }))
-
-                dispatch(setArtifacts(
-                    Array.isArray(data?.artifacts) ? data.artifacts : []
-                ))
-            } else {
+            if (data == null) {
                 dispatch(addMessage({
                     role: "assistant",
                     content: "Sorry, something went wrong. Please try again."
                 }))
-
                 dispatch(setArtifacts([]))
+                return
             }
+
+            // Display the assistant's response
+            dispatch(addMessage({
+                role: "assistant",
+                content: data?.answer || data?.message || "",
+                images: data?.images || []
+            }))
+
+            // Prefer artifacts returned directly by the agent
+            let generatedArtifacts = Array.isArray(data?.artifacts)
+                ? data.artifacts
+                : []
+
+            // If the response doesn't include artifacts, check saved messages
+            if (generatedArtifacts.length === 0) {
+                try {
+                    const response = await getMessages(conversation._id)
+
+                    const messages = Array.isArray(response)
+                        ? response
+                        : Array.isArray(response?.messages)
+                            ? response.messages
+                            : []
+
+                    // Find the newest saved assistant message with artifacts
+                    const latestArtifactMessage = [...messages]
+                        .reverse()
+                        .find(message =>
+                            message.role === "assistant" &&
+                            Array.isArray(message.artifacts) &&
+                            message.artifacts.length > 0
+                        )
+
+                    if (latestArtifactMessage) {
+                        generatedArtifacts = latestArtifactMessage.artifacts
+                    }
+                } catch (error) {
+                    console.error("Error fetching artifacts:", error)
+                }
+            }
+
+            // Show artifacts after processing finishes
+            dispatch(setArtifacts(generatedArtifacts))
+
         } catch (error) {
             console.error("Error sending message:", error)
 
@@ -114,50 +170,20 @@ function ChatInput() {
             }))
 
             dispatch(setArtifacts([]))
+        } finally {
+            setIsSending(false)
         }
     }
 
     const agents = [
-        {
-            id: "auto",
-            icon: Zap,
-            label: "Auto"
-        },
-        {
-            id: "chat",
-            icon: MessageSquare,
-            label: "chat"
-        },
-        {
-            id: "coding",
-            icon: Code2,
-            label: "Coding"
-        },
-        {
-            id: "pdf",
-            icon: FileText,
-            label: "PDF"
-        },
-        {
-            id: "ppt",
-            icon: Presentation,
-            label: "PPT"
-        },
-        {
-            id: "image",
-            icon: ImageIcon,
-            label: "image"
-        },
-        {
-            id: "search",
-            icon: Search,
-            label: "Search"
-        },
-        {
-            id: "buildora",
-            icon: PanelsTopLeft,
-            label: "Buildora"
-        }
+        { id: "auto", icon: Zap, label: "Auto" },
+        { id: "chat", icon: MessageSquare, label: "chat" },
+        { id: "coding", icon: Code2, label: "Coding" },
+        { id: "pdf", icon: FileText, label: "PDF" },
+        { id: "ppt", icon: Presentation, label: "PPT" },
+        { id: "image", icon: ImageIcon, label: "image" },
+        { id: "search", icon: Search, label: "Search" },
+        { id: "buildora", icon: PanelsTopLeft, label: "Buildora" }
     ]
 
     return (
@@ -209,8 +235,13 @@ function ChatInput() {
                     placeholder="Ask Anything..."
                     onChange={(e) => setValue(e.target.value)}
                     value={value}
+                    disabled={isSending}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                        if (
+                            e.key === 'Enter' &&
+                            !e.shiftKey &&
+                            !isSending
+                        ) {
                             e.preventDefault()
                             handleSendMessage()
                         }
@@ -238,12 +269,13 @@ function ChatInput() {
 
                     <button
                         type="button"
-                        disabled={!value.trim()}
+                        disabled={!value.trim() || isSending}
                         onClick={handleSendMessage}
-                        className={`flex items-center justify-center w-8 h-8 rounded-lg border-none cursor-pointer transition-all duration-150 ${value.trim()
-                            ? "bg-linear-to-br from-indigo-500 to-violet-700 hover:opacity-90 text-white"
-                            : "bg-white/[0.05] text-slate-600 cursor-not-allowed"
-                            }`}
+                        className={`flex items-center justify-center w-8 h-8 rounded-lg border-none cursor-pointer transition-all duration-150 ${
+                            value.trim() && !isSending
+                                ? "bg-linear-to-br from-indigo-500 to-violet-700 hover:opacity-90 text-white"
+                                : "bg-white/[0.05] text-slate-600 cursor-not-allowed"
+                        }`}
                     >
                         <Send size={15} />
                     </button>
