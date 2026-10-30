@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { X, FileX2, ExternalLink, Copy,Check } from 'lucide-react'
+import { X, FileX2, ExternalLink, Copy, Check, Download } from 'lucide-react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -24,6 +23,36 @@ function MessageBubble({ role, content, images = [] }) {
         }, 2000)
     }
 
+    // ADDED: Download image to the user's local computer
+    const downloadImage = async (imageUrl) => {
+        if (!imageUrl) return
+
+        try {
+            const response = await fetch(imageUrl)
+
+            if (!response.ok) {
+                throw new Error("Failed to download image")
+            }
+
+            const blob = await response.blob()
+            const blobUrl = URL.createObjectURL(blob)
+
+            const link = document.createElement("a")
+            link.href = blobUrl
+            link.download = `buildora-image-${Date.now()}.png`
+
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+        } catch (error) {
+            console.error("Image download failed:", error)
+
+            // Fallback: open the image if cross-origin downloading is blocked
+            window.open(imageUrl, "_blank", "noopener,noreferrer")
+        }
+    }
 
 
     return (
@@ -83,12 +112,11 @@ function MessageBubble({ role, content, images = [] }) {
                         ),
 
                         th: ({ children }) => (
-                            < th className='border border-white/10 bg-white/5 px-3 py-2 text-left'>
+                            <th className='border border-white/10 bg-white/5 px-3 py-2 text-left'>
                                 {children}
                             </th>
                         ),
                         td: ({ children }) => (
-
                             <td className='border border-white/10 px-3 py-2'>
                                 {children}
                             </td>
@@ -105,7 +133,8 @@ function MessageBubble({ role, content, images = [] }) {
                         ),
                         code: ({ className, children }) => {
                             const value = String(children)
-                                .trim();
+                                .trim()
+
                             if (!className) {
                                 return (
                                     <code className='px-1.5 py-0.5 rounded bg-white/10 text-indigo-300'>
@@ -126,10 +155,10 @@ function MessageBubble({ role, content, images = [] }) {
                                             {
                                                 copiedCode == value ?
                                                     <>
-                                                        <Check size={14}/>
+                                                        <Check size={14} />
                                                         Copied
                                                     </> :
-                                                   <><Copy size={14} /> Copy</>
+                                                    <><Copy size={14} /> Copy</>
                                             }
                                         </button>
                                     </div>
@@ -151,11 +180,37 @@ function MessageBubble({ role, content, images = [] }) {
 
                                 </div>
                             )
-                        }
+                        },
 
+                        // UPDATED: Keep the image and add a download button
+                        img: ({ src, alt }) => {
+                            if (!src?.trim()) return null
+
+                            return (
+                                <div className="my-3">
+                                    <img
+                                        src={src}
+                                        alt={alt || "Generated image"}
+                                        onClick={() => setLightBox(src)}
+                                        loading="lazy"
+                                        onError={(e) => e.currentTarget.remove()}
+                                        className="w-40 h-28 rounded-xl object-cover border border-white/10 cursor-zoom-in hover:opacity-90 transition"
+                                    />
+
+                                    {/* ADDED: Download button below the image */}
+                                    <button
+                                        type="button"
+                                        onClick={() => downloadImage(src)}
+                                        className="mt-2 flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 underline"
+                                    >
+                                        <Download size={15} />
+                                        Download Image
+                                    </button>
+                                </div>
+                            )
+                        }
                     }}
                 >
-
                     {safeContent}
                 </Markdown>
             </div>
@@ -175,16 +230,31 @@ function MessageBubble({ role, content, images = [] }) {
                             <X />
                         </button>
 
-                        <img
-                            src={lightBox}
-                            alt="Full-size preview"
-                            className="max-w-[90vw] max-h-[85vh] rounded-2xl border border-white/10 shadow-2xl object-contain"
-                            onClick={(e) => e.stopPropagation()}
-                        />
+                        <div className="flex flex-col items-center gap-3">
+                            <img
+                                src={lightBox}
+                                alt="Full-size preview"
+                                className="max-w-[90vw] max-h-[85vh] rounded-2xl border border-white/10 shadow-2xl object-contain"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+
+                            {/* ADDED: Download button in the full-size preview */}
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    downloadImage(lightBox)
+                                }}
+                                className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-white hover:bg-white/20"
+                            >
+                                <Download size={16} />
+                                Download Image
+                            </button>
+                        </div>
                     </div>
                 )
             }
-        </div >
+        </div>
     )
 }
 

@@ -18,7 +18,7 @@ function ChatArea() {
         let active = true
 
         const getMesg = async () => {
-            // Clear messages and artifacts when switching conversations
+            // Clear previous conversation data
             dispatch(setMessages([]))
             dispatch(setArtifacts([]))
 
@@ -26,25 +26,38 @@ function ChatArea() {
                 return
             }
 
-            // A new conversation has no previous messages to load
-            if (selectedConversation.title === "New Chat") {
-                return
+            try {
+                const data = await getMessages(selectedConversation._id)
+
+                // Ignore responses from a previously selected conversation
+                if (!active) return
+
+                const messages = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.messages)
+                        ? data.messages
+                        : []
+
+                dispatch(setMessages(messages))
+
+                // Restore ALL artifacts from this conversation
+                const allArtifacts = messages
+                    .filter(message =>
+                        message.role === "assistant" &&
+                        Array.isArray(message.artifacts)
+                    )
+                    .flatMap(message => message.artifacts)
+
+                dispatch(setArtifacts(allArtifacts))
+
+            } catch (error) {
+                console.error("Error loading conversation messages:", error)
+
+                if (active) {
+                    dispatch(setMessages([]))
+                    dispatch(setArtifacts([]))
+                }
             }
-
-            const data = await getMessages(selectedConversation._id)
-
-            // Ignore responses belonging to a previously selected chat
-            if (!active) return
-
-            const messages = Array.isArray(data) ? data : []
-
-            dispatch(setMessages(messages))
-
-            const latestArtifactMessage = [...messages]
-                .reverse()
-                .find(msg => Array.isArray(msg.artifacts) && msg.artifacts.length > 0)
-
-            dispatch(setArtifacts(latestArtifactMessage?.artifacts || []))
         }
 
         getMesg()

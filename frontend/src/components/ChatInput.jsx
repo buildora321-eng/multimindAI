@@ -38,7 +38,41 @@ function ChatInput() {
         state => state.conversation
     )
 
+    // Keep the artifacts already loaded for this conversation
+    const currentArtifacts = useSelector(
+        state => state.message?.artifacts ?? []
+    )
+
     const dispatch = useDispatch()
+
+    // Combine artifacts without adding duplicates
+    const mergeArtifacts = (...groups) => {
+        const uniqueArtifacts = new Map()
+
+        groups.flat().forEach((artifact, index) => {
+            if (!artifact) return
+
+            const fileUrl =
+                artifact.url ||
+                artifact.files?.[0]?.url ||
+                ''
+
+            const fileName =
+                artifact.name ||
+                artifact.files?.[0]?.name ||
+                ''
+
+            const key = fileUrl
+                ? `url:${fileUrl}`
+                : fileName
+                    ? `file:${fileName}`
+                    : `artifact:${artifact.type || ''}:${artifact.title || ''}:${index}`
+
+            uniqueArtifacts.set(key, artifact)
+        })
+
+        return Array.from(uniqueArtifacts.values())
+    }
 
     const handleSendMessage = async () => {
         const prompt = value.trim()
@@ -80,31 +114,31 @@ function ChatInput() {
                 }))
             }
 
+            const isDifferentConversation =
+                !selectedConversation ||
+                selectedConversation._id !== conversation._id
+
+            // Clear state only when starting a different conversation
+            if (isDifferentConversation) {
+                dispatch(setMessages([]))
+                dispatch(setArtifacts([]))
+            }
+
             const payload = {
                 prompt,
                 conversationId: conversation._id,
                 agent: selectedAgent.toLowerCase()
             }
 
-            // Clear old messages and artifacts for a new conversation
-            if (
-                !selectedConversation ||
-                selectedConversation._id !== conversation._id
-            ) {
-                dispatch(setMessages([]))
-                dispatch(setArtifacts([]))
-            }
-
-            // Add the user's message and hide the previous artifact
             dispatch(addMessage({
                 role: "user",
                 content: prompt
             }))
 
-            dispatch(setArtifacts([]))
+            // Do NOT clear artifacts here.
+            // Existing artifacts remain available while the agent works.
             setValue('')
 
-            // Ask the agent to process the prompt
             const data = await sendMessage(payload)
 
             console.log("Agent response:", data)
@@ -114,23 +148,22 @@ function ChatInput() {
                     role: "assistant",
                     content: "Sorry, something went wrong. Please try again."
                 }))
-                dispatch(setArtifacts([]))
                 return
             }
 
-            // Display the assistant's response
+            // Display the assistant response
             dispatch(addMessage({
                 role: "assistant",
                 content: data?.answer || data?.message || "",
                 images: data?.images || []
             }))
 
-            // Prefer artifacts returned directly by the agent
             let generatedArtifacts = Array.isArray(data?.artifacts)
                 ? data.artifacts
                 : []
 
-            // If the response doesn't include artifacts, check saved messages
+            // If no artifacts came directly from the agent,
+            // retrieve all saved artifacts for this conversation.
             if (generatedArtifacts.length === 0) {
                 try {
                     const response = await getMessages(conversation._id)
@@ -141,25 +174,24 @@ function ChatInput() {
                             ? response.messages
                             : []
 
-                    // Find the newest saved assistant message with artifacts
-                    const latestArtifactMessage = [...messages]
-                        .reverse()
-                        .find(message =>
+                    generatedArtifacts = messages
+                        .filter(message =>
                             message.role === "assistant" &&
-                            Array.isArray(message.artifacts) &&
-                            message.artifacts.length > 0
+                            Array.isArray(message.artifacts)
                         )
-
-                    if (latestArtifactMessage) {
-                        generatedArtifacts = latestArtifactMessage.artifacts
-                    }
+                        .flatMap(message => message.artifacts)
                 } catch (error) {
                     console.error("Error fetching artifacts:", error)
                 }
             }
 
-            // Show artifacts after processing finishes
-            dispatch(setArtifacts(generatedArtifacts))
+            // Keep old artifacts and add newly generated ones
+            const updatedArtifacts = mergeArtifacts(
+                isDifferentConversation ? [] : currentArtifacts,
+                generatedArtifacts
+            )
+
+            dispatch(setArtifacts(updatedArtifacts))
 
         } catch (error) {
             console.error("Error sending message:", error)
@@ -169,7 +201,7 @@ function ChatInput() {
                 content: "Sorry, something went wrong. Please try again."
             }))
 
-            dispatch(setArtifacts([]))
+            // Preserve existing artifacts if the request fails.
         } finally {
             setIsSending(false)
         }
@@ -181,7 +213,7 @@ function ChatInput() {
         { id: "coding", icon: Code2, label: "Coding" },
         { id: "pdf", icon: FileText, label: "PDF" },
         { id: "ppt", icon: Presentation, label: "PPT" },
-        { id: "image", icon: ImageIcon, label: "image" },
+        { id: "vision", icon: ImageIcon, label: "vision" },
         { id: "search", icon: Search, label: "Search" },
         { id: "buildora", icon: PanelsTopLeft, label: "Buildora" }
     ]

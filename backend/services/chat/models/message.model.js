@@ -1,35 +1,84 @@
+
 import mongoose from "mongoose";
 
-const fileSchema=new mongoose.Schema({
-    name:String,
-    content:String
-},{
-    _id:false
-})
-const artifactsSchema=new mongoose.Schema({
-    id:Number,
-    type:String,
-    title:String,
-    files:[fileSchema],
-},{
-    _id:false
-})
-const messageSchema=new mongoose.Schema({
-    conversationId:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"Conversation"
+// Generated file information
+const fileSchema = new mongoose.Schema({
+    name: {
+        type: String
     },
-    role:{
-        type:String,
-        enum:["user","assistant"]
+    content: {
+        type: String,
+        default: undefined
     },
-    content:String,
-    images:[String],
-    artifacts:[artifactsSchema]
-    
-},{
-    timestamps:true
-})
+    url: {
+        type: String
+    },
+    type: {
+        type: String
+    }
+}, {
+    _id: false
+});
 
-const Message=mongoose.model("Message",messageSchema)
-export default Message
+// Artifact information
+const artifactsSchema = new mongoose.Schema({
+    id: {
+        type: Number
+    },
+    type: {
+        type: String
+    },
+    title: {
+        type: String
+    },
+    name: {
+        type: String
+    },
+    content: {
+        type: String,
+        default: undefined
+    },
+    url: {
+        type: String
+    },
+    files: {
+        type: [fileSchema],
+        default: []
+    }
+}, {
+    _id: false
+});
+
+// Message information
+const messageSchema = new mongoose.Schema({
+    conversationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Conversation"
+    },
+
+    role: {
+        type: String,
+        enum: ["user", "assistant"]
+    },
+
+    content: {
+        type: String
+    },
+
+    images: {
+        type: [String],
+        default: []
+    },
+
+    artifacts: {
+        type: [artifactsSchema],
+        default: []
+    }
+
+}, {
+    timestamps: true
+});
+
+const Message = mongoose.model("Message", messageSchema);
+
+export default Message;

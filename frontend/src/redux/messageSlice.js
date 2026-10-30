@@ -4,7 +4,7 @@ const messageSlice = createSlice({
     name: "message",
     initialState: {
         messages: [],
-        artifacts:[]
+        artifacts:[],
    
     },
     reducers: {
