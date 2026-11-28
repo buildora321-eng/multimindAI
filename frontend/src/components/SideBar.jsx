@@ -1,15 +1,15 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import {
-    PenSquare, PenBoxIcon, PanelLeft as PanelLeftIcon, Plus, MessageSquare, Coins, User,
+    PenSquare, PanelLeft as PanelLeftIcon, Plus, MessageSquare, Coins, User,
     LogOut, PanelRight
 } from "lucide-react"
 import { useState } from 'react'
 import { setUserdata } from '../redux/userSlice'
 import { useDispatch, useSelector } from 'react-redux'
 import { getConversations } from '../features/getConversations'
-import { addConversation, setConversations, setSelectedConversation } from '../redux/conversationSlice'
-import { createConversation } from '../features/createConversation'
+import { setConversations, setSelectedConversation } from '../redux/conversationSlice'
 import logOut from '../features/logOut'
+import { setArtifacts, setMessages } from '../redux/messageSlice'
 function SideBar() {
     const [collapsed, setCollapsed] = useState(false)
     const dispatch = useDispatch()
@@ -22,12 +22,7 @@ function SideBar() {
             dispatch(setConversations(data))
         }
         getConv()
-    }, [userData?._id])
-
-    const handleCreateConversation = async () => {
-        const data = await createConversation()
-        dispatch(addConversation(data))
-    }
+    }, [userData?._id, dispatch])
 
 
     if (collapsed) {
@@ -46,7 +41,7 @@ function SideBar() {
                 </button>
 
                 <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-5'>
-                    {conversations.map((conv, i) => {
+                    {conversations.map((conv) => {
                         const isActive = selectedConversation?._id == conv?._id
                         return (
                             <div
@@ -123,7 +118,7 @@ ${isActive ? "bg-indigo-500/15 text-indigo-400" : "bg-white/[0.05] text-slate-50
                     )}
 
                 <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                    {conversations.map((conv, i) => {
+                    {conversations.map((conv) => {
                         const isActive = selectedConversation?._id == conv?._id
                         return (
                             <div
@@ -177,8 +172,14 @@ hover:bg-white/[0.05] transition-colors duration-150'>
                                 </button>
                                 <button className='flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-slate-600 cursor-pointer hover:bg-white/[0.08] hover:text-slate-400 transition-all duration-150'
                                     onClick={async () => {
-                                        await logOut();
-                                        dispatch(setUserdata(null))
+                                        const loggedOut = await logOut();
+                                        if (loggedOut) {
+                                            dispatch(setUserdata(null))
+                                            dispatch(setConversations([]))
+                                            dispatch(setSelectedConversation(null))
+                                            dispatch(setMessages([]))
+                                            dispatch(setArtifacts([]))
+                                        }
                                     }}
                                 >
                                     <LogOut size={16} />

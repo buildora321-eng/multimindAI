@@ -1,6 +1,6 @@
 
+import "dotenv/config"
 import express from "express";
-import dotenv from "dotenv";
 import Proxy from "express-http-proxy";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -9,8 +9,6 @@ import morgan from "morgan";
 import { getCurrentUser } from "./controllers/user.controller.js";
 import protect from "./middleware/auth.middleware.js";
 import { proxyWithHeader } from "./utils/proxyWithHeader.js";
-
-dotenv.config();
 
 const port = process.env.PORT;
 const app = express();
@@ -28,7 +26,13 @@ app.use(morgan("dev"));
 app.use(cookieParser());
 
 // Existing authentication routes
-app.use("/api/auth", Proxy(process.env.AUTH_SERVICE));
+app.use("/api/auth", Proxy(process.env.AUTH_SERVICE, {
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+        // The auth service uses the gateway-observed address for rate limiting.
+        proxyReqOpts.headers["x-client-ip"] = srcReq.ip;
+        return proxyReqOpts;
+    }
+}));
 
 // Generated PDF and PPT files
 // Forward requests to the agent service (port 8003)
